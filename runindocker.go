@@ -3,7 +3,7 @@ Package dbtesting is used for unit test which gives you a clean db environment
 for mysql usage:
 
 	func TestMain(m *testing.M) {
-		os.Exit(dbtesting.RunDBInDocker(m, &config.Config{
+		os.Exit(dbtesting.RunInDocker(m, &config.Config{
 			Image:         "mysql:5.6",
 			User:          "root",
 			Password:      "123456",
@@ -22,7 +22,7 @@ for mysql usage:
 for mongo usage:
 
 	func TestMain(m *testing.M) {
-			os.Exit(dbtesting.RunDBInDocker(m, &config.Config{
+			os.Exit(dbtesting.RunInDocker(m, &config.Config{
 				Image:         "mongo",
 				User:          "admin",
 				Password:      "123456",
@@ -40,7 +40,7 @@ for mongo usage:
 for redis usage:
 
 		func TestMain(m *testing.M) {
-				os.Exit(dbtesting.RunDBInDocker(m, &config.Config{
+				os.Exit(dbtesting.RunInDocker(m, &config.Config{
 					Image:         "redis",
 					User:          "admin",
 					Password:      "123456",
@@ -64,6 +64,8 @@ package testingindocker
 import (
 	"context"
 	"fmt"
+
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
@@ -75,7 +77,11 @@ import (
 	"testing"
 )
 
-var ConnURI string
+var ConnMap map[config.DB]string
+
+func init() {
+	ConnMap = make(map[config.DB]string)
+}
 
 // RunInDocker Docker中运行环境
 func RunInDocker(m *testing.M, config *config.Config) int {
@@ -113,12 +119,12 @@ func RunInDocker(m *testing.M, config *config.Config) int {
 		panic(err)
 	}
 
-	err = cli.ContainerStart(ctx, containerBody.ID, container.StartOptions{})
+	err = cli.ContainerStart(ctx, containerBody.ID, types.ContainerStartOptions{})
 	if err != nil {
 		panic(err)
 	}
 	defer func() {
-		err = cli.ContainerRemove(ctx, containerBody.ID, container.RemoveOptions{
+		err = cli.ContainerRemove(ctx, containerBody.ID, types.ContainerRemoveOptions{
 			Force: true,
 		})
 		if err != nil {
@@ -132,11 +138,12 @@ func RunInDocker(m *testing.M, config *config.Config) int {
 		panic(err)
 	}
 	hostPortBinding := inspectJson.NetworkSettings.Ports[nat.Port(config.ContainerPort)][0]
-
-	ConnURI, err = builder.BuildURI(hostPortBinding.HostIP, hostPortBinding.HostPort)
+	var connUri string
+	connUri, err = builder.BuildURI(hostPortBinding.HostIP, hostPortBinding.HostPort)
 	if err != nil {
 		panic(err)
 	}
+	ConnMap[config.DB] = connUri
 	port := strings.ReplaceAll(config.ContainerPort, "/tcp", "")
 	_ = waiter.ForLog(port, cli, containerBody.ID).Wait(ctx)
 

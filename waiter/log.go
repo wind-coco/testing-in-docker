@@ -2,7 +2,7 @@ package waiter
 
 import (
 	"context"
-	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"io"
 	"strings"
@@ -22,7 +22,7 @@ func (w *LogWaiter) Wait(c context.Context) error {
 		case <-c.Done():
 			return c.Err()
 		default:
-			rc, err := w.client.ContainerLogs(c, w.containerID, container.LogsOptions{
+			rc, err := w.client.ContainerLogs(c, w.containerID, types.ContainerLogsOptions{
 				ShowStdout: true,
 				ShowStderr: true,
 			})
